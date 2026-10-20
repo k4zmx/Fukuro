@@ -1,0 +1,87 @@
+/* Calendar additions: exams & deadlines, to-dos to plan, free time, month view, revision planner. */
+
+/* sidebar sections */
+.sec-h2{display:flex;align-items:flex-start;gap:4px}
+.sec-h2 .sec-h{flex:1}
+.sec-add{width:22px;height:22px;margin-top:-2px;display:grid;place-items:center;border-radius:6px;color:var(--side-muted)}
+.sec-add:hover{background:var(--side-hover);color:var(--side-ink)}
+.sec.closed .sec-add{display:none}
+.dls{display:flex;flex-direction:column;gap:4px}
+.dli{display:grid;grid-template-columns:42px 1fr;align-items:center;gap:10px;padding:6px 8px 6px 6px;border-radius:var(--r);text-align:left}
+.dli:hover{background:var(--side-hover)}
+.dli .cd{height:38px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:7px;background:color-mix(in srgb,var(--c) 12%,transparent);color:var(--c);line-height:1}
+.dli .cd b{font-size:15px;font-weight:750;font-variant-numeric:tabular-nums}
+.dli .cd small{font-size:9.5px;font-weight:700;margin-top:2px}
+.dli.soon .cd{background:var(--c);color:#fff}
+.dli .nm{min-width:0}
+.dli .nm b{display:block;font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dli .nm small{display:block;font-size:11px;color:var(--side-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-empty{font-size:12px;color:var(--side-muted)}
+.ctd{list-style:none;display:flex;flex-direction:column;gap:3px}
+.ctd li{display:flex;align-items:center;gap:8px;min-height:30px;padding:4px 8px 4px 4px;border-radius:var(--r);border:1px solid var(--side-line);background:var(--next-bg);font-size:12.5px;cursor:grab}
+.ctd li:hover{border-color:var(--side-muted)}
+.ctd li:active{cursor:grabbing}
+.ctd .grip{width:8px;height:14px;flex:none;opacity:.45;background:radial-gradient(circle,var(--side-ink) 1.1px,transparent 1.4px) 0 0/4px 4px}
+.ctd .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctd small{flex:none;font-size:10.5px;font-weight:700;color:var(--side-muted)}
+.ctd small.on{color:#3f7f74}
+.ctd li.more{border:0;background:none;padding-left:4px;font-size:11.5px;color:var(--side-muted);cursor:default}
+
+/* top bar */
+.vseg{display:flex;gap:2px;padding:3px;border-radius:calc(var(--r) + 2px);background:var(--hover)}
+.vseg button{height:29px;padding:0 11px;border-radius:var(--r);font-size:12.5px;font-weight:600;color:var(--muted)}
+.vseg button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px #0002}
+#freeBtn.on{background:color-mix(in srgb,#3f7f74 14%,transparent);color:#3f7f74}
+.app.mview [data-act=free],.app.mview .grid{display:none}
+
+/* free time + exam flags on the grid */
+.free{position:absolute;top:4px;bottom:4px;z-index:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px;border-radius:var(--r);border:1.5px dashed color-mix(in srgb,#3f7f74 55%,transparent);background:color-mix(in srgb,#3f7f74 7%,transparent);pointer-events:none;overflow:hidden}
+.free span{font-size:10.5px;font-weight:700;color:#3f7f74;white-space:nowrap}
+.dlflag{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed var(--c);z-index:5;pointer-events:none}
+.dlflag button{position:absolute;top:2px;left:3px;max-width:150px;height:17px;padding:0 6px;border-radius:4px;background:var(--c);color:#fff;font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:auto}
+.marks{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+.mk{height:17px;padding:0 6px;border-radius:999px;background:var(--c);color:#fff;font-size:9.5px;font-weight:700;letter-spacing:.02em}
+.mk.td{background:var(--ink);color:var(--panel)}
+.mk:hover{filter:brightness(1.12)}
+.pop .duel li{gap:10px}
+.pop .duel .td-check{width:18px;height:18px}
+
+/* month view */
+.month{display:none;flex:1;flex-direction:column;min-height:0;padding:0 22px 16px}
+.app.mview .month{display:flex}
+.mo-head{display:grid;grid-template-columns:repeat(7,1fr);flex:none}
+.mo-head span{padding:10px 10px 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mo-grid{flex:1;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(var(--weeks),1fr);min-height:0;border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.mc{display:flex;flex-direction:column;gap:3px;min-height:0;padding:7px 8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;cursor:pointer}
+.mc:hover{background:var(--hover)}
+.mc.out{background:color-mix(in srgb,var(--ink) 2.5%,transparent)}
+.mc.out .n,.mc.past .n{color:var(--muted)}
+.mc.today{background:var(--today-row)}
+.mc-h{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.mc .n{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.mc.today .n{display:grid;place-items:center;width:24px;height:24px;border-radius:4px;background:var(--shu);color:#fff}
+.mc .dots{display:flex;gap:3px}
+.mc .dots i{width:7px;height:7px;border-radius:50%}
+.mjob{align-self:flex-start;padding:1px 6px;border-radius:4px;background:color-mix(in srgb,var(--job-c) 18%,transparent);color:color-mix(in srgb,var(--job-c) 70%,var(--ink));font-size:10.5px;font-weight:700}
+.mis{display:flex;flex-direction:column;gap:2px;min-height:0}
+.mi{display:flex;align-items:center;gap:5px;min-width:0;padding:2px 6px;border-radius:4px;background:color-mix(in srgb,var(--c) 12%,transparent);font-size:11px;font-weight:600;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi i{font-style:normal;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.mi.dl{background:var(--c);color:#fff}
+.mi.dl b{font-size:9.5px;letter-spacing:.03em;text-transform:uppercase;opacity:.85}
+.mi.td{--c:var(--ink)}
+.mc .more{font-size:10.5px;color:var(--muted);padding-left:6px}
+
+/* sheets: selects + planner */
+.sheet .sel{width:100%;height:40px;padding:0 10px;border-radius:var(--r);border:1px solid var(--line);background:var(--panel);outline:none;font-size:13.5px}
+.sheet .sel:focus{border-color:var(--ink)}
+.nums.n2{grid-template-columns:1fr 1fr}
+.pl-list{display:flex;flex-direction:column;gap:4px;max-height:min(300px,40vh);overflow-y:auto;scrollbar-width:thin}
+.pl-row{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:var(--r);border:1px solid var(--line);cursor:pointer}
+.pl-row:has(input:checked){border-color:#3f7f74;background:color-mix(in srgb,#3f7f74 8%,transparent)}
+.pl-row input{width:16px;height:16px;accent-color:#3f7f74}
+.pl-row b{display:block;font-size:13px}
+.pl-row small{display:block;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* narrow blocks keep their title: the badge goes first */
+.ev{container-type:inline-size}
+@container (max-width:120px){.ev .t i{display:none}}

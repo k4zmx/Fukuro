@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en" data-theme="washi" data-mode="light">
+<script>try{var m=JSON.parse((window.deskStorage||localStorage).getItem('jk.mode'))||'light';if(m==='auto')m=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.mode=m}catch(e){}</script>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fukurō</title>
+<link rel="icon" href="build/icon.png">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="modules.css">
+<link rel="stylesheet" href="pages.css">
+<link rel="stylesheet" href="notes.css">
+<link rel="stylesheet" href="cal-plus.css">
+<link rel="stylesheet" href="hub.css">
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+
+<div class="shell">
+<nav class="rail" id="rail"></nav>
+<div class="views">
+<section class="view panel" data-view="overview" id="v-overview"></section>
+<div class="app view" data-view="calendar">
+  <aside class="side">
+    <div class="brand"><div><b>Calendar</b><small id="ttName"></small></div></div>
+
+    <div class="addrow">
+      <button class="add" data-act="add"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Event</button>
+      <button class="add alt" data-act="add-week" title="Activity repeated every week (R)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>Routine</button>
+    </div>
+
+    <section class="sec" data-sec="cal">
+      <button class="sec-h" data-act="sec" data-v="cal">Calendar<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="sec-b">
+        <div class="mini-top"><span id="miniTitle"></span><div>
+          <button class="icon-btn" data-act="mini-prev" aria-label="Previous month"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+          <button class="icon-btn" data-act="mini-next" aria-label="Next month"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+        </div></div>
+        <div class="mini-grid" id="mini"></div>
+      </div>
+    </section>
+
+
+    <section class="sec" data-sec="filters">
+      <button class="sec-h" data-act="sec" data-v="filters">Filters<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="sec-b"><div class="filters" id="filters"></div></div>
+    </section>
+
+    <section class="sec" data-sec="dl">
+      <div class="sec-h2"><button class="sec-h" data-act="sec" data-v="dl">Exams & deadlines<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button><button class="sec-add" data-act="dl-new" title="Add an exam or deadline"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+      <div class="sec-b"><div class="dls" id="dls"></div></div>
+    </section>
+
+    <section class="sec" data-sec="todo">
+      <button class="sec-h" data-act="sec" data-v="todo">To-dos to plan<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="sec-b"><ul class="ctd" id="ctd"></ul></div>
+    </section>
+
+    <section class="sec" data-sec="week">
+      <button class="sec-h" data-act="sec" data-v="week">This week<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="sec-b"><div class="stats" id="stats"></div></div>
+    </section>
+
+    <section class="sec next-sec">
+      <div class="sec-h">Up next</div>
+      <div class="next" id="next"></div>
+    </section>
+  </aside>
+
+  <main>
+    <header class="top">
+      <button class="btn ghosty" data-act="side" aria-label="Show / hide sidebar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+      <div><h1 id="title"></h1><div class="range" id="range"></div></div>
+      <div class="tools">
+        <div class="badge" id="badge">Week changed<button data-act="reset-week">Reset</button></div>
+        <button class="btn ghosty" data-act="free" id="freeBtn" title="Show free time (F)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2.5" stroke-dasharray="3 3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Free time</button>
+        <div class="vseg" id="vseg"><button data-act="cview" data-v="week">Week</button><button data-act="cview" data-v="month">Month</button></div>
+        <button class="btn" data-act="prev" aria-label="Previous"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+        <button class="btn" data-act="today">Today</button>
+        <button class="btn" data-act="next" aria-label="Next"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+        <div class="menu-wrap">
+          <button class="btn" data-act="menu"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Export</button>
+          <div class="menu" id="menu">
+            <button data-act="print"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/></svg><span>Print / PDF<small>This week, landscape</small></span></button>
+            <button data-act="ics"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Calendar file (.ics)<small>Google Calendar, phone…</small></span></button>
+            <hr>
+            <button data-act="backup"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Backup (.json)<small>Events, filters, changes and settings</small></span></button>
+            <button data-act="import"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg><span>Restore a backup</span></button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="hours-row"><div class="corner"></div><div class="hours" id="hours"></div></div>
+      <div class="rows" id="rows"></div>
+    </div>
+    <div class="month" id="month" hidden></div>
+  </main>
+</div>
+<section class="view panel" data-view="timers" id="v-timers"></section>
+<section class="view panel" data-view="clocks" id="v-clocks"></section>
+<section class="view panel" data-view="todos" id="v-todos"></section>
+<section class="view panel np" data-view="notes" id="v-notes"></section>
+<section class="view panel np" data-view="boards" id="v-boards"></section>
+<section class="view panel" data-view="habits" id="v-habits"></section>
+<section class="view panel" data-view="projects" id="v-projects"></section>
+<section class="view panel" data-view="snippets" id="v-snippets"></section>
+<section class="view panel" data-view="videos" id="v-videos"></section>
+<section class="view panel" data-view="budget" id="v-budget"></section>
+<section class="view panel" data-view="settings" id="v-settings"></section>
+</div>
+</div>
+<button class="tpill" id="tpill" hidden></button>
+
+<div class="pop" id="pop"></div>
+
+<div class="modal" id="modal">
+  <form class="sheet" id="form" autocomplete="off">
+    <h2 id="formTitle">New event</h2>
+    <input type="text" name="title" class="title-in" placeholder="Title" required maxlength="80">
+    <div class="cats" id="cats"></div>
+    <div class="when" id="fWhen"><button type="button" data-w="once">Once</button><button type="button" data-w="week">Every week</button></div>
+    <div class="f3" id="fOnce">
+      <label>Day<input type="date" name="date" required></label>
+      <label>Start<input type="time" name="start" step="300" required></label>
+      <label>End<input type="time" name="end" step="300" required></label>
+    </div>
+    <div class="fweek" id="fWeek" hidden>
+      <div class="daypick" id="fDays"></div>
+      <div class="dayrows" id="fRows"></div>
+    </div>
+    <textarea name="note" placeholder="Description (optional)" maxlength="300"></textarea>
+    <div class="actions">
+      <button type="button" class="btn danger" id="fDelete">Delete</button>
+      <span class="sp"></span>
+      <button type="button" class="btn" id="fCancel">Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</div>
+
+<div class="modal" id="catModal">
+  <form class="sheet small" id="catForm" autocomplete="off">
+    <h2 id="catTitle">New filter</h2>
+    <input type="text" name="name" class="title-in" placeholder="Name (e.g. Gym, Project, Outing…)" required maxlength="30">
+    <div class="field-lbl">Colour</div>
+    <div class="swatches" id="swatches"></div>
+    <div class="actions">
+      <button type="button" class="btn danger" id="catDelete">Delete</button>
+      <span class="sp"></span>
+      <button type="button" class="btn" id="catCancel">Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</div>
+
+<div class="bar" id="bar"></div>
+<div class="modal" id="tmModal"><form class="sheet small" id="tmForm" autocomplete="off"></form></div>
+<div class="modal" id="ckModal"><div class="sheet small" id="ckSheet"></div></div>
+<div class="modal" id="mdModal"><form class="sheet small" id="mdForm" autocomplete="off"></form></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="bgFile" accept="image/*" hidden>
+<input type="file" id="importFile" accept=".json,application/json" hidden>
+
+<div class="palette" id="palette" hidden></div>
+
+<script src="core.js"></script>
+<script src="data.js"></script>
+<script src="cal-core.js"></script>
+<script src="cal-grid.js"></script>
+<script src="cal-interact.js"></script>
+<script src="cal-edit.js"></script>
+<script src="cal-plan.js"></script>
+<script src="cal-month.js"></script>
+<script src="timetable.js"></script>
+<script src="shell.js"></script>
+<script src="ui.js"></script>
+<script src="timers.js"></script>
+<script src="clocks.js"></script>
+<script src="todos.js"></script>
+<script src="notes.js"></script>
+<script src="boards.js"></script>
+<script src="habits.js"></script>
+<script src="projects.js"></script>
+<script src="snippets.js"></script>
+<script src="videos.js"></script>
+<script src="budget.js"></script>
+<script src="journal.js"></script>
+<script src="search.js"></script>
+<script src="reminders.js"></script>
+<script src="settings.js"></script>
+<script src="overview.js"></script>
+</body>
+</html>

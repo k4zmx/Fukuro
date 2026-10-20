@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quick capture</title>
+<style>
+@font-face{font-family:Commissioner;src:url('fonts/commissioner.woff2') format('woff2');font-weight:100 900}
+:root{--bg:#fbf8f2;--ink:#1c1a17;--muted:#8a8274;--line:#d8cfbd;--chip:#efe9dd}
+.dark{--bg:#211f1b;--ink:#ebe5d9;--muted:#8e8678;--line:#3a362f;--chip:#2c2924}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:transparent;overflow:hidden;font-family:Commissioner,system-ui,sans-serif}
+.box{margin:10px;height:72px;display:flex;align-items:center;gap:14px;padding:0 18px 0 14px;border-radius:18px;background:var(--bg);color:var(--ink);border:1px solid var(--line);box-shadow:0 10px 30px -12px #0007}
+.owl{width:40px;height:40px;flex:none;background:url(build/icon.png) center/contain no-repeat}
+input{flex:1;min-width:0;font:inherit;font-size:18px;font-weight:500;color:var(--ink);background:none;border:0;outline:none}
+input::placeholder{color:var(--muted)}
+.kind{flex:none;padding:4px 10px;border-radius:999px;background:var(--chip);font-size:12px;font-weight:700;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="box"><span class="owl"></span><input id="q" placeholder="To-do · note … · -300 lunch · YouTube link · snip Title :: cmd" autocomplete="off" spellcheck="false"><span class="kind" id="k">To-do</span></div>
+<script>
+const q = document.getElementById('q'), k = document.getElementById('k');
+const kindOf = v => /youtu\.?be/.test(v) ? 'Video' : /^snip\s/i.test(v) ? 'Snippet' : /^note\s/i.test(v) ? 'Note' : /^([+-]\s*\d|(spent|paid|bought|earned|received|save)\s+\d)/i.test(v) ? 'Money' : 'To-do';
+q.addEventListener('input', () => { k.textContent = kindOf(q.value); });
+q.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { q.value = ''; deskApp.captureHide(); }
+  if (e.key === 'Enter' && q.value.trim()) { deskApp.captureSubmit(q.value.trim()); q.value = ''; k.textContent = 'To-do'; }
+});
+deskApp.onCaptureOpen(mode => {
+  let m = 'light'; try { m = JSON.parse(mode); } catch {}
+  if (m === 'auto') m = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.classList.toggle('dark', m === 'dark');
+  q.focus(); q.select();
+});
+</script>
+</body>
+</html>

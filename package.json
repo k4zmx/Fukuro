@@ -1,0 +1,77 @@
+{
+  "name": "fukuro",
+  "productName": "Fukurō",
+  "version": "1.5.0",
+  "description": "Fukurō 梟 · a calm desktop hub for your week: calendar, timetable, to-dos, notes, budget, habits and focus timers",
+  "main": "main.js",
+  "author": "k4zmx",
+  "license": "MIT",
+  "homepage": "https://github.com/k4zmx/Fukuro",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/k4zmx/Fukuro.git"
+  },
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "release": "node scripts/check.js && electron-builder --win && node scripts/release.js",
+    "check": "node scripts/check.js"
+  },
+  "build": {
+    "appId": "com.almig.emploidutemps",
+    "productName": "Fukurō",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "capture.html",
+      "*.css",
+      "core.js",
+      "data.js",
+      "cal-*.js",
+      "timetable.js",
+      "shell.js",
+      "ui.js",
+      "timers.js",
+      "clocks.js",
+      "todos.js",
+      "notes.js",
+      "boards.js",
+      "habits.js",
+      "projects.js",
+      "snippets.js",
+      "videos.js",
+      "budget.js",
+      "journal.js",
+      "search.js",
+      "reminders.js",
+      "settings.js",
+      "overview.js",
+      "fonts/**",
+      "build/icon.png"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Fukurō",
+      "artifactName": "Fukuro-Setup-${version}.${ext}"
+    },
+    "publish": null
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
+  }
+}
