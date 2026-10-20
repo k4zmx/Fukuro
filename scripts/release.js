@@ -5,6 +5,8 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+// some networks time out on IPv6
+require('dns').setDefaultResultOrder('ipv4first');
 const pkg = require('../package.json');
 
 const repo = pkg.repository.url.match(/github\.com[:/](.+?)(\.git)?$/)[1];

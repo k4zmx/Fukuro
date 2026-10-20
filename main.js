@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, nativeTheme, shell, Tray, Menu, nativeImage, globalShortcut, dialog, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, shell, Tray, Menu, nativeImage, globalShortcut, dialog, screen, net } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { execFile, spawn } = require('child_process');
@@ -97,7 +97,7 @@ ipcMain.handle('scan:repos', async () => {
 // title + channel for a YouTube link (oEmbed, no API key)
 ipcMain.handle('yt:meta', async (_, url) => {
   try {
-    const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(url));
+    const r = await net.fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(url));
     if (!r.ok) return null;
     const j = await r.json();
     return { title: j.title, author: j.author_name };
@@ -223,7 +223,8 @@ const newer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').m
 let ready = null, checking = null;   // ready: {version, notes, file} once the installer is on disk
 async function fetchUpdate(){
   const gh = { 'User-Agent': 'Fukuro', Accept: 'application/vnd.github+json' };
-  const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: gh });
+  // Chromium's network stack (proxy settings, IPv4 fallback) rather than Node's fetch
+  const r = await net.fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: gh });
   if (!r.ok) return;
   const rel = await r.json(), version = String(rel.tag_name || '').replace(/^v/, '');
   const asset = (rel.assets || []).find(a => /\.exe$/i.test(a.name));
@@ -232,7 +233,7 @@ async function fetchUpdate(){
   if (!fs.existsSync(file) || fs.statSync(file).size !== asset.size) {
     fs.mkdirSync(updatesDir, { recursive: true });
     fs.readdirSync(updatesDir).forEach(f => fs.rmSync(path.join(updatesDir, f), { force: true }));
-    const d = await fetch(asset.browser_download_url, { headers: { 'User-Agent': 'Fukuro' } });
+    const d = await net.fetch(asset.browser_download_url, { headers: { 'User-Agent': 'Fukuro' } });
     if (!d.ok) return;
     fs.writeFileSync(file + '.part', Buffer.from(await d.arrayBuffer()));
     fs.renameSync(file + '.part', file);
