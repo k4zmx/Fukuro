@@ -19,10 +19,18 @@ function openPop(ev, anchor){
     if (ttGroups().length) li.push(`${ICON.users}${ev.g ? 'Group ' + esc(ev.g) : 'Every group'}`);
   }
   if (isP && ev.note) li.push(`${ICON.note}${esc(ev.note)}`);
-  const status = ev.cancelled ? 'Cancelled this week' : ev.moved ? 'Time changed this week' : ev.clash ? 'During your work hours' : '';
+  if (isUni && ev.attNote) li.push(`${ICON.note}${esc(ev.attNote)}`);
+  const status = ev.att ? ATT_ST[ev.att].long : ev.cancelled ? 'Cancelled this week' : ev.moved ? 'Time changed this week' : ev.clash ? 'During your work hours' : '';
 
   const acts = [];
-  if (!ev.allDay && (isUni || isJob || ev.repeat)) {
+  if (isUni && !ev.allDay) {
+    // past classes get a mark; a coming one can only be called off
+    if (ev.cancelled && !ev.att) acts.push(['restore', 'Restore']);
+    else if (new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, ev.s) <= new Date())
+      acts.push(...Object.entries(ATT_ST).map(([k, s]) => ['att:' + k, s.label, ev.att === k ? 'on' : '']), ['attnote', ev.attNote ? 'Edit note' : 'Note']);
+    else acts.push(ev.att === 'off' ? ['att:', 'Not cancelled'] : ['att:off', 'Cancelled']);
+    if (ev.moved) acts.push(['restore', 'Usual time']);
+  } else if (!ev.allDay && (isJob || ev.repeat)) {
     acts.push(ev.cancelled ? ['restore', 'Restore'] : ['skip', 'Skip this week']);
     if (ev.moved) acts.push(['restore', 'Usual time']);
   }
@@ -61,6 +69,11 @@ function closePop(){
 function popAction(v){
   const ev = popEv, wk = iso(cur);
   if (v === 'edit') { closePop(); return openForm(state.events.find(x => x.id === ev.id)); }
+  if (v.startsWith('att:') || v === 'attnote') {
+    const date = iso(addDays(cur, ev.d)), o = {key:date + ':' + ev.id, date, ev}, st = v.slice(4);
+    closePop();
+    return v === 'attnote' ? openCheckin(o) : attSet(o, st && ev.att !== st ? st : null);
+  }
   if (v === 'ttedit') { closePop(); return ev.kind === 'uni' ? openClass(TT.classes.find(c => c.id === ev.id)) : openShift(SHIFTS.find(j => j.id === ev.id)); }
   if (v === 'skip') {
     setOvr(wk, ev.id, {hidden:true});

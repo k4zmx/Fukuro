@@ -2,8 +2,10 @@
 const VIEWS = [
   {k:'overview', name:'Overview', icon:'<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>'},
   {k:'calendar', name:'Calendar', icon:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8.5 3v4M15.5 3v4"/>'},
+  {k:'classes',  name:'Classes',  icon:'<path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11.2v4.6c1.6 1.5 3.5 2.2 5.5 2.2s3.9-.7 5.5-2.2v-4.6M21.5 9v5"/>'},
   {k:'todos',    name:'To-dos',   icon:'<rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="m8 12.2 2.8 2.8L16 9.5"/>'},
   {k:'notes',    name:'Notes',    icon:'<path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h5M9 12.5h6M9 16h4"/>'},
+  {k:'chat',     name:'Chat',     icon:'<path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-4.5 3.5v-3.5h0a2 2 0 0 1-1-1.7z"/><path d="M8.5 9.5h7M8.5 12.5h4.5"/>'},
   {k:'boards',   name:'Boards',   icon:'<rect x="3" y="4" width="8.5" height="7" rx="1.8"/><rect x="12.5" y="13" width="8.5" height="7" rx="1.8"/><path d="M7.25 11v4.5h5.25"/>'},
   {k:'habits',   name:'Habits',   icon:'<path d="M12 3c.8 3.2 5 5.3 5 10a5 5 0 0 1-10 0c0-2.4 1.3-3.9 2.4-5 .3 1.9 1.1 2.9 2.4 3.4C11.4 9.2 11 6 12 3z"/>'},
   {k:'timers',   name:'Timers',   icon:'<circle cx="12" cy="13.5" r="7.5"/><path d="M12 10v3.5l2.5 1.5M9.5 2.5h5"/>'},
@@ -11,6 +13,7 @@ const VIEWS = [
   {k:'projects', name:'Projects', icon:'<circle cx="6.5" cy="5.5" r="2.2"/><circle cx="6.5" cy="18.5" r="2.2"/><circle cx="17.5" cy="7.5" r="2.2"/><path d="M6.5 7.7v8.6M17.5 9.7c0 4.3-5 3.8-9.6 7"/>'},
   {k:'snippets', name:'Snippets', icon:'<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="m7.5 9.5 3 2.5-3 2.5M12.5 15h4"/>'},
   {k:'videos',   name:'Videos',   icon:'<rect x="2.5" y="5" width="19" height="14" rx="3.5"/><path d="M10 9.2v5.6l4.8-2.8z"/>'},
+  {k:'music',    name:'Music',    icon:'<path d="M9 18V5.5l10-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>'},
   {k:'budget',   name:'Budget',   icon:'<path d="M4 7.5a2.5 2.5 0 0 1 2.5-2.5H17v3"/><rect x="4" y="7.5" width="16.5" height="12" rx="2.5"/><path d="M16 13.5h1.5"/>'},
 ];
 // pages reached from the bottom of the bar, not listed with the others
@@ -129,19 +132,39 @@ document.addEventListener('keydown', e => {
 function openCapture(){
   if (DESK) return desk.captureShow();
   const t = prompt('Quick capture: a to-do, "note ...", "-300 lunch", a YouTube link, or "snip Title :: command"');
-  if (t && t.trim()) captureText(t.trim());
+  if (t && t.trim()) captureText(t.trim()).then(r => r?.undo && toast(esc(r.text), [['Undo', () => capUndo && capUndo()]]));
 }
-function captureText(text){
-  if (/youtu\.?be/.test(text)) return MODS.videos.add(text.match(/\S*youtu\.?be\S*/)[0]);
+// returns what the capture box shows afterwards; anything clear-cut stays local, the rest may go to the AI (ai.js)
+let capUndo = null;
+async function captureText(text){
+  capUndo = null;
+  if (/youtu\.?be/.test(text)) { MODS.videos.add(text.match(/\S*youtu\.?be\S*/)[0]); return {text:'Saved to Videos'}; }
   const nt = text.match(/^note\s*:?\s+([\s\S]+)$/i);
-  if (nt) return MODS.notes.capture(nt[1]);
-  const money = parseMoney(text);
-  if (money) return MODS.budget.add(money);
+  if (nt) { await MODS.notes.capture(nt[1]); return {text:'Note saved in Inbox'}; }
+  const m = parseMoney(text);
+  if (m && !aiDated(text)) {
+    MODS.budget.add(m);
+    const e = BG.data.entries[BG.data.entries.length - 1];
+    capUndo = () => { BG.data.entries = BG.data.entries.filter(x => x !== e); saveBudget(); refreshMoney(); };
+    return {text:`${m.kind === 'out' ? 'Spent' : m.kind === 'in' ? 'Earned' : 'Saved'} ${money(m.amt)}${m.note ? ' · ' + m.note : ''}`, undo:true};
+  }
   const sn = text.match(/^snip\s+(.+?)\s*::\s*(.+)$/i);
-  if (sn) return MODS.snippets.add({title:sn[1], code:sn[2]});
-  MODS.todos.add(text.replace(/^(todo|to-do)\s*:?\s*/i, ''));
+  if (sn) { MODS.snippets.add({title:sn[1], code:sn[2]}); return {text:'Snippet saved'}; }
+  const smart = await aiCapture(text);
+  if (smart) return smart;
+  const t = text.replace(/^(todo|to-do)\s*:?\s*/i, '');
+  MODS.todos.add(t);
+  const id = TD.list[TD.list.length - 1].id;
+  capUndo = () => { TD.list = TD.list.filter(x => x.id !== id); saveTodos(); refreshAll(); };
+  return {text:'To-do · ' + t, undo:true};
 }
-if (DESK) desk.onCapture(captureText);
+if (DESK) {
+  desk.onCapture(async text => {
+    let r; try { r = await captureText(text); } catch (e) { r = {text:'Could not add that', fail:true}; console.error(e); }
+    desk.captureDone(r || {text:'Added'});
+  });
+  desk.onCaptureUndo(() => { if (capUndo) { capUndo(); capUndo = null; toast('Undone'); } });
+}
 addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
 addEventListener('drop', e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
 
@@ -163,7 +186,7 @@ $('tpill').addEventListener('click', () => go('timers'));
 /* ---------- small shared helpers for module pages ---------- */
 const ago = ms => {
   const s = (Date.now() - ms) / 1000;
-  return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : s < 86400 * 30 ? `${Math.floor(s / 86400)} days ago` : new Date(ms).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+  return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : s < 86400 * 2 ? 'yesterday' : s < 86400 * 30 ? `${Math.floor(s / 86400)} days ago` : new Date(ms).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
 };
 const todayISO = () => iso(new Date());
 async function copyText(text, label = 'Copied'){

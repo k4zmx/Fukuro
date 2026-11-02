@@ -31,6 +31,7 @@ MODS.settings = {
         ${row('Week starts on', 'The first column of the calendar', `<select class="st-sel" data-wk="1">${[[1, 'Monday'], [0, 'Sunday'], [6, 'Saturday']].map(([v, l]) => `<option value="${v}" ${v === CFG.weekStart ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
         ${row('Open on', 'The page you see when Fukurō starts', sel('startPage', [['last', 'Where I left off'], ['overview', 'Overview'], ['calendar', 'Calendar'], ['todos', 'To-dos'], ['notes', 'Notes'], ['budget', 'Budget']], CFG.startPage, true))}
         ${toggle('sound', CFG.sound !== false, 'Sounds', 'The chime for timers and reminders')}
+        ${toggle('vdAuto', CFG.vdAuto, 'Mark videos watched near the end', 'In the video player, once you pass 90%')}
         ${toggle('motion', CFG.motion !== false, 'Animations', 'Cards sliding in and numbers counting up on the Overview')}
       </section>
 
@@ -68,10 +69,13 @@ MODS.settings = {
         ${toggle('remOn', CFG.remOn, 'Notifications', 'Before classes and your events, plus exam warnings')}
         ${row('Before each class', '', sel('remLead', [[5, '5 min'], [10, '10 min'], [15, '15 min'], [20, '20 min'], [30, '30 min'], [45, '45 min']], CFG.remLead))}
         ${toggle('remWork', CFG.remWork, 'Remind me before work too', '')}
+        ${toggle('attAsk', CFG.attAsk, 'Ask after each class', 'When a class ends: did you go? Not during your work hours')}
         ${toggle('remExam', CFG.remExam !== false, 'Exam warnings', 'The evening before at 18:00, and an hour before when a time is set')}
         ${row('Morning summary', 'Your day in one notification', `<input type="time" class="st-time" data-cfg="remDigest" value="${CFG.remDigest || ''}"><button class="btn" data-st="digestoff"${CFG.remDigest ? '' : ' hidden'}>Off</button>`)}
         ${row('Try it', '', '<button class="btn" data-st="testrem">Send a test</button>')}
       </section>
+
+      ${DESK ? aiCardHTML() : ''}
 
       <section class="st-card"><h3>Free time & revision planner</h3>
         ${row('Free time counts from', 'The planner never puts sessions outside this', `<input type="time" class="st-time" data-cfg="planFrom" value="${fmt(CFG.planFrom)}"><span class="st-to">to</span><input type="time" class="st-time" data-cfg="planTo" value="${fmt(Math.min(CFG.planTo, 1439))}">`)}
@@ -122,7 +126,7 @@ $('v-settings').addEventListener('change', e => {
   const k = t.dataset.cfg; if (!k) return;
   if (t.type === 'checkbox') setCfg(k, t.checked);
   else if (t.type === 'time') {
-    if (k === 'remDigest') setCfg(k, t.value);
+    if (k === 'remDigest' || k === 'reviewTime') setCfg(k, t.value || '19:00');
     else if (t.value) setCfg(k, toMin(t.value) || (k === 'planTo' ? 1440 : 0));
     if (CFG.planTo <= CFG.planFrom) { CFG.planTo = Math.min(1440, CFG.planFrom + 60); saveCfg(); MODS.settings.render(); }
   }
@@ -130,7 +134,7 @@ $('v-settings').addEventListener('change', e => {
   else if (t.type === 'number' || t.tagName === 'SELECT') setCfg(k, +t.value || 0);
   else setCfg(k, t.value.trim());
   if (k === 'snap') SNAP = CFG.snap || 5;
-  if (k === 'remDigest' || k === 'missTodos') MODS.settings.render();
+  if (['remDigest', 'missTodos', 'aiReview', 'reviewDay', 'reviewTime'].includes(k)) MODS.settings.render();
   toast('Saved');
 });
 $('v-settings').addEventListener('click', async e => {
@@ -172,6 +176,8 @@ $('v-settings').addEventListener('click', async e => {
       toast('Calendar changes cleared', [['Undo', () => { Object.assign(state, prev); save('ovr', 'base', 'size'); }]]); break;
     }
     case 'check': toast('Checking…'); ST.update = await desk.checkUpdate(); MODS.settings.render(); toast(ST.update.available ? `Version ${ST.update.version} is ready` : 'No new version yet'); break;
+    case 'aicheck': AI.status = null; MODS.settings.render(); await aiCheck(); MODS.settings.render(); break;
+    case 'review': reviewNow(); break;
     case 'install': toast('Updating… Fukurō will reopen by itself'); setTimeout(() => desk.installUpdate(), 600); break;
   }
 });
@@ -272,3 +278,18 @@ addEventListener('DOMContentLoaded', () => setTimeout(() => {
   if (!store.get('setup', 0)) welcome();
   else if (store.get('ttPrompt', 0)) { LS.removeItem('jk.ttPrompt'); openTimetable(); }
 }, 400));
+
+function aiCardHTML(){
+  if (!AI.status) aiCheck().then(() => window.VIEW === 'settings' && MODS.settings.render());
+  const s = AI.status, n = aiCount();
+  const msg = !s ? 'Checking…' : !s.found ? 'Not found. Install Claude Code and sign in to turn these on' : !s.loggedIn ? 'Claude Code is installed but not signed in. Run claude once in a terminal' : 'Uses the Claude Code sign-in on this PC · no API key';
+  const days = DAY_NAMES.map((d, i) => [(CFG.weekStart + i) % 7, DAY_NAMES[(CFG.weekStart + i) % 7]]);
+  return `<section class="st-card"><h3>AI</h3>
+    ${row(s?.loggedIn ? 'Claude is ready' : 'Claude', msg, '<button class="btn" data-st="aicheck">Check</button>')}
+    ${toggle('aiCapture', CFG.aiCapture !== false, 'Understand plain sentences', 'Quick capture notes with a day, a time or an amount go to Claude Haiku. Plain to-dos never leave your PC')}
+    ${toggle('aiReview', CFG.aiReview !== false, 'Weekly review', `Written ${DAY_NAMES[reviewDay()]} at ${CFG.reviewTime || '19:00'}, saved in Notes, Reviews folder`)}
+    ${CFG.aiReview !== false ? row('Review day', '', `<select class="st-sel" data-cfg="reviewDay">${days.map(([v, l]) => `<option value="${v}" ${v === reviewDay() ? 'selected' : ''}>${l}</option>`).join('')}</select><input type="time" class="st-time" data-cfg="reviewTime" value="${CFG.reviewTime || '19:00'}">`) : ''}
+    ${row('Write one now', 'This week so far', `<button class="btn" data-st="review"${s?.loggedIn ? '' : ' disabled'}>Write review</button>`)}
+    ${row('Usage', `${n} request${n === 1 ? '' : 's'} this week`, '')}
+  </section>`;
+}

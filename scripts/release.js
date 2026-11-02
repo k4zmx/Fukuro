@@ -1,4 +1,5 @@
-// After `electron-builder`, publish dist/Fukuro-Setup-<version>.exe as a GitHub release. Installed copies
+// After `electron-builder`, publish dist/Fukuro-Setup.exe as a GitHub release. The name never changes, so
+// github.com/<repo>/releases/latest/download/Fukuro-Setup.exe always gets the newest one. Installed copies
 // check the latest release and offer "Restart to update".
 // Usage: npm run release   (or: node scripts/release.js "what changed")
 // Needs a token with access to the repo: GH_TOKEN, or the one git already uses for github.com.
@@ -10,7 +11,7 @@ require('dns').setDefaultResultOrder('ipv4first');
 const pkg = require('../package.json');
 
 const repo = pkg.repository.url.match(/github\.com[:/](.+?)(\.git)?$/)[1];
-const tag = 'v' + pkg.version, file = `Fukuro-Setup-${pkg.version}.exe`;
+const tag = 'v' + pkg.version, file = 'Fukuro-Setup.exe';
 const src = path.join(__dirname, '..', 'dist', file);
 if (!fs.existsSync(src)) { console.error(`Missing ${src}. Run electron-builder first.`); process.exit(1); }
 

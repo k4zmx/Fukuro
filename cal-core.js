@@ -29,6 +29,7 @@ const state = {
   bg:         LS.getItem('jk.bg'),
   cview:      store.get('cview', 'week'),   // 'week' | 'month'
   showFree:   store.get('showFree', false),
+  att:        store.get('att', {}),         // présence : {'2026-10-19:u3': {st, note, sub, t, date, s, e}}
 };
 if (!store.get('catsV2', false)) {
   state.cats = state.cats.filter(c => !['perso','exam','devoir','revision'].includes(c.k));
@@ -72,6 +73,8 @@ function weekEvents(ws = cur){
   TT.classes.forEach(u => {
     if (u.g && TT.group && u.g !== TT.group) return;
     push({id:u.id, kind:'uni', t:u.t, title:u.sub, c:subjOf(u.sub).c, room:u.room, prof:u.prof, g:u.g, d:u.d, s:u.s, e:u.e, ...state.base[u.id]});
+    const ev = out[out.length - 1], a = state.att[iso(addDays(ws, ev.d)) + ':' + u.id];
+    if (a) { ev.att = a.st; ev.attNote = a.note; if (a.st === 'off') ev.cancelled = true; }
   });
   SHIFTS.forEach(j => {
     if (j.allDay) push({id:j.id, kind:'job', allDay:true, label:j.label, d:j.d});

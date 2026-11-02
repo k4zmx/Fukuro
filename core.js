@@ -23,6 +23,8 @@ const CFG = Object.assign({
   ovHide: [], ovOrder: 'time', ovSay: true, ovSuggest: true,       // overview
   missTodos: false, calTodos: true, snap: 5,                      // calendar & to-dos
   remExam: true,                                                   // exam warnings
+  attAsk: true,                                                    // "did you go?" when a class ends
+  vdAuto: true,                                                    // videos: watched near the end
   recAuto: true, limWarn: true, planFill: true,                    // budget automation
 }, store.get('cfg', {}));
 const saveCfg = () => store.set('cfg', CFG);

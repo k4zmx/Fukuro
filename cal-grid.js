@@ -133,11 +133,11 @@ const dataAttrs = e => `data-id="${e.id}" data-s="${e.s}" data-e="${e.e}"${e.gid
 
 function evHTML(e){
   const type = e.kind === 'uni' ? e.t.toLowerCase() : 'perso';
-  const cls = ['ev', type, e.cancelled && 'cancelled', e.moved && 'moved', e.clash && 'clash', e.lanes > 1 && 'compact', e.tiny && 'tiny', e.id === sel && 'selected', picked.has(e.id) && 'picked'].filter(Boolean).join(' ');
+  const cls = ['ev', type, e.cancelled && 'cancelled', e.moved && 'moved', e.clash && 'clash', e.att && 'att-' + e.att, e.lanes > 1 && 'compact', e.tiny && 'tiny', e.id === sel && 'selected', picked.has(e.id) && 'picked'].filter(Boolean).join(' ');
   const badge = e.clash ? 'At work' : e.kind === 'uni' ? typeName(e.t) : catOf(e.cat).label;
   const meta = e.kind === 'uni' ? [e.room, e.prof].filter(Boolean).join(' · ') : e.detail || e.note;
   return `<div class="${cls}" ${dataAttrs(e)}${e.full ? ' data-full' : ''} style="--c:${e.c};${xPos(e.s, e.e)};top:${laneTop(e)};height:${laneH(e)}">
-    <div class="t"><span>${esc(e.title)}</span><i>${esc(badge)}</i></div>
+    <div class="t">${e.att && e.att !== 'off' ? `<b class="att-i">${ATT_I[e.att]}</b>` : ''}<span>${esc(e.title)}</span><i>${esc(badge)}</i></div>
     ${meta ? `<div class="m">${esc(meta)}</div>` : ''}
     <div class="h">${fmt(e.s)} – ${fmt(e.e)}</div>${e.cancelled ? '' : HANDLES}</div>`;
 }

@@ -1,4 +1,4 @@
-// Videos: your YouTube library. Paste a link, title and thumbnail fill in, then tag and filter.
+// Videos: your YouTube library. Paste a link, title and thumbnail fill in, then tag and filter. Plays inside the app and resumes where you stopped.
 const VD = {list: store.get('videos', []), filter: 'all', tag: '', q: ''};
 const saveVideos = () => store.set('videos', VD.list);
 const ytId = url => (url.match(/(?:youtu\.be\/|v=|shorts\/|embed\/|live\/)([\w-]{11})/) || [])[1];
@@ -35,8 +35,8 @@ MODS.videos = {
         <div class="chipbar inline">${[['all', 'All'], ['todo', 'To watch'], ['seen', 'Watched']].map(([k, l]) => `<button class="${VD.filter === k ? 'on' : ''}" data-vdf="${k}">${l}<small>${n(k)}</small></button>`).join('')}</div></div>
       ${tags.length ? `<div class="chipbar tags"><button class="${VD.tag ? '' : 'on'}" data-vdt="">All tags</button>${tags.map(t => `<button class="${VD.tag === t ? 'on' : ''}" data-vdt="${esc(t)}">#${esc(t)}</button>`).join('')}</div>` : ''}
       <div class="vd-grid">${shown.map(v => `<div class="vd-card${v.watched ? ' seen' : ''}" data-id="${v.id}">
-          <button class="vd-thumb" data-vd="open" style="background-image:url(${thumb(v.vid)})" aria-label="Open"><span class="vd-play">${svg('<path d="M8 5.5v13l10.5-6.5z"/>', 20)}</span></button>
-          <div class="vd-body"><b data-vd="open">${esc(v.title)}</b><small>${esc(v.author || '')}${v.author ? ' · ' : ''}${ago(v.added)}</small>
+          <button class="vd-thumb" data-vd="open" style="background-image:url(${thumb(v.vid)})" aria-label="Play"><span class="vd-play">${svg('<path d="M8 5.5v13l10.5-6.5z"/>', 20)}</span>${resumeAt(v) ? `<span class="vd-prog" style="--p:${(v.pos / v.dur).toFixed(3)}"></span>` : ''}</button>
+          <div class="vd-body"><b data-vd="open">${esc(v.title)}</b><small>${esc(v.author || '')}${v.author ? ' · ' : ''}${resumeAt(v) ? `stopped at ${vdTime(v.pos)} of ${vdTime(v.dur)}` : ago(v.added)}</small>
             ${v.tags.length ? `<div class="vd-tags">${v.tags.map(t => `<span>#${esc(t)}</span>`).join('')}</div>` : ''}</div>
           <div class="vd-acts"><button data-vd="seen" class="${v.watched ? 'on' : ''}" title="${v.watched ? 'Mark as to watch' : 'Mark as watched'}">${VI.eye}</button>
             <button data-vd="tags" title="Tags">${VI.tag}</button><button data-vd="del" title="Delete">${TI.x}</button></div>
@@ -58,7 +58,7 @@ $('v-videos').addEventListener('click', e => {
   const b = e.target.closest('[data-vd]'); if (!b) return;
   const v = VD.list.find(x => x.id === b.closest('[data-id]')?.dataset.id);
   switch (b.dataset.vd) {
-    case 'open': DESK ? desk.openUrl(v.url) : window.open(v.url, '_blank'); break;
+    case 'open': openPlayer(v); break;
     case 'seen': v.watched = !v.watched; saveVideos(); MODS.videos.render(); break;
     case 'tags': openSheet(`<h2>Tags</h2><p class="field-note">${esc(v.title)}</p>
         <input type="text" name="tags" class="title-in" placeholder="docker, nextjs, chess" value="${esc(v.tags.join(', '))}">
@@ -72,3 +72,61 @@ $('v-videos').addEventListener('click', e => {
     }
   }
 });
+
+/* ---------- player ---------- */
+const PL = {v:null, tm:0};
+const vdTime = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60; return (h ? h + ':' + pad(m) : m) + ':' + pad(s % 60); };
+// worth resuming: started, and not in the last 20 seconds
+const resumeAt = v => v.dur && v.pos > 10 && v.pos < v.dur - 20 ? Math.floor(v.pos) : 0;
+const openExternal = v => DESK ? desk.openUrl(v.url) : window.open(v.url, '_blank');
+
+async function openPlayer(v){
+  await closePlayer();
+  PL.v = v;
+  const start = resumeAt(v), el = document.createElement('div');
+  el.id = 'player'; el.className = 'pl';
+  el.innerHTML = `<div class="pl-box">
+    <div class="pl-frame"><iframe src="https://www.youtube-nocookie.com/embed/${v.vid}?autoplay=1&rel=0&start=${start}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
+      <div class="pl-err" hidden><p></p><button class="btn primary" data-pl="ext">Open on YouTube</button></div></div>
+    <div class="pl-bar"><div class="pl-t"><b>${esc(v.title)}</b><small>${esc(v.author || '')}${start ? `${v.author ? ' · ' : ''}resumed at ${vdTime(start)}` : ''}</small></div>
+      <button class="btn${v.watched ? ' on' : ''}" data-pl="seen">${VI.eye}${v.watched ? 'Watched' : 'Mark watched'}</button>
+      <button class="btn" data-pl="ext">Open on YouTube</button>
+      <button class="btn icon" data-pl="close" aria-label="Close">${TI.x}</button></div>
+  </div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  if (DESK) PL.tm = setInterval(playerTick, 4000);
+}
+async function playerTick(){
+  const v = PL.v, r = v && DESK ? await desk.ytProbe() : null;
+  if (!r || PL.v !== v) return;
+  if (r.err) {
+    clearInterval(PL.tm);
+    const box = $('player').querySelector('.pl-err');
+    box.firstElementChild.textContent = `YouTube says: "${r.err}". Some videos only play on YouTube itself.`; box.hidden = false;
+    return;
+  }
+  if (!r.d || Math.abs(r.t - (v.pos || 0)) < 1) return;
+  v.pos = Math.round(r.t); v.dur = Math.round(r.d);
+  if (CFG.vdAuto && !v.watched && r.t / r.d > 0.9) { v.watched = true; playerSeen(v); toast('Marked as watched'); }
+  saveVideos();
+}
+const playerSeen = v => { const b = $('player')?.querySelector('[data-pl=seen]'); if (b) { b.classList.toggle('on', v.watched); b.innerHTML = VI.eye + (v.watched ? 'Watched' : 'Mark watched'); } };
+async function closePlayer(){
+  const el = $('player'); if (!el) return;
+  clearInterval(PL.tm);
+  await playerTick();
+  PL.v = null; el.remove();
+  if (window.VIEW === 'videos') MODS.videos.render();
+}
+document.addEventListener('click', e => {
+  const pl = e.target.closest('#player'); if (!pl) return;
+  const b = e.target.closest('[data-pl]');
+  if (!b) { if (e.target === pl) closePlayer(); return; }
+  const v = PL.v;
+  if (b.dataset.pl === 'close') closePlayer();
+  if (b.dataset.pl === 'ext') { closePlayer(); openExternal(v); }
+  if (b.dataset.pl === 'seen') { v.watched = !v.watched; saveVideos(); playerSeen(v); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && PL.v) closePlayer(); });
+if (DESK && desk.onEsc) desk.onEsc(() => { if (PL.v && document.activeElement?.tagName === 'IFRAME') closePlayer(); });

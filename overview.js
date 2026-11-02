@@ -274,6 +274,7 @@ MODS.overview = {
           <div id="ovRibbon">${ribbonHTML(now)}</div>
         </section>
       </div>
+      ${attCardHTML()}${reviewCardHTML()}
       <div class="ov-grid">${cardOrder(now).map((k, i) => cards[k](i + 3)).join('')}</div>
     </div>`;
     OV.fresh = false; OV.min = now.getMinutes();

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, nativeTheme, shell, Tray, Menu, nativeImage, globalShortcut, dialog, screen, net } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, shell, Tray, Menu, nativeImage, globalShortcut, dialog, screen, net, session } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { execFile, spawn } = require('child_process');
@@ -104,9 +104,19 @@ ipcMain.handle('yt:meta', async (_, url) => {
   } catch { return null; }
 });
 
+// the in-app player: where the video is, and whether YouTube refused to play it
+ipcMain.handle('yt:probe', async () => {
+  const f = win?.webContents.mainFrame.framesInSubtree.find(x => /^https:\/\/www\.youtube(-nocookie)?\.com\/embed\//.test(x.url));
+  if (!f) return null;
+  try {
+    return await f.executeJavaScript(`(() => { const v = document.querySelector('video'), e = document.querySelector('.ytp-error');
+      return {t: v ? v.currentTime : 0, d: v && isFinite(v.duration) ? v.duration : 0, err: e && e.offsetParent ? e.innerText.trim().slice(0, 160) : ''}; })()`);
+  } catch { return null; }
+});
+
 /* ---------- notes: real .md files, kept local (not in OneDrive) ---------- */
 const defaultNotes = path.join(os.homedir(), 'Documents', 'Fukurō', 'Notes');
-let notesRoot = process.env.EDT_NOTES_DIR || settings.notesDir || defaultNotes;
+let notesRoot = path.resolve(process.env.EDT_NOTES_DIR || settings.notesDir || defaultNotes);
 const inRoot = rel => {
   const full = path.resolve(notesRoot, rel || '');
   if (full !== notesRoot && !full.startsWith(notesRoot + path.sep)) throw new Error('outside notes folder');
@@ -167,7 +177,7 @@ ipcMain.handle('notes:reveal', (_, rel) => rel ? shell.showItemInFolder(inRoot(r
 ipcMain.handle('settings:get', () => settings);
 ipcMain.handle('settings:set', (_, k, v) => {
   settings[k] = v; saveSettings();
-  if (k === 'notesDir' && !process.env.EDT_NOTES_DIR) notesRoot = v || defaultNotes;
+  if (k === 'notesDir' && !process.env.EDT_NOTES_DIR) notesRoot = path.resolve(v || defaultNotes);
   if (k === 'autostart') applyAutostart();
   if (k === 'hotkey') registerHotkey();
   buildTrayMenu();
@@ -193,7 +203,8 @@ function showCapture(){
   const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   capture.setPosition(Math.round(workArea.x + (workArea.width - 620) / 2), Math.round(workArea.y + workArea.height * 0.22));
   capture.show(); capture.focus();
-  capture.webContents.send('capture:open', data['jk.mode'] || '"light"');
+  let cfg = {}; try { cfg = JSON.parse(data['jk.cfg'] || '{}'); } catch {}
+  capture.webContents.send('capture:open', data['jk.mode'] || '"light"', cfg.aiCapture !== false && !!findClaude());
 }
 function registerHotkey(){
   globalShortcut.unregisterAll();
@@ -205,12 +216,154 @@ ipcMain.handle('hotkey:test', (_, k) => {
   if (!ok) { settings.hotkey = prev; registerHotkey(); } else { saveSettings(); buildTrayMenu(); }
   return ok;
 });
+// the box stays open until the main window reports what it added (the AI can take a few seconds)
 ipcMain.on('capture:submit', (_, text) => {
-  capture && capture.hide();
   if (win && !win.isDestroyed()) win.webContents.send('capture', text);
+  else capture && capture.hide();
 });
+ipcMain.on('capture:done', (_, r) => capture && !capture.isDestroyed() && capture.webContents.send('capture:done', r));
+ipcMain.on('capture:undo', () => win && !win.isDestroyed() && win.webContents.send('capture:undo'));
 ipcMain.on('capture:hide', () => capture && capture.hide());
 ipcMain.on('capture:show', showCapture);
+
+/* ---------- AI: Claude Code's own login on this PC (claude -p), so no API key ----------
+   Kept cheap on purpose: no tools, no CLAUDE.md or plugins (--safe-mode), a short system prompt, nothing saved. */
+const aiDir = path.join(app.getPath('userData'), 'ai');
+let claudeBin;
+function findClaude(){
+  if (claudeBin) return claudeBin;
+  const c = [path.join(os.homedir(), '.local', 'bin', 'claude.exe')];
+  try { c.push(...require('child_process').execFileSync('where.exe', ['claude'], { encoding: 'utf8', windowsHide: true }).split(/\r?\n/).filter(Boolean)); } catch {}
+  return claudeBin = c.find(f => /\.exe$/i.test(f) && fs.existsSync(f)) || c.find(f => /\.cmd$/i.test(f) && fs.existsSync(f)) || null;
+}
+function runClaude(args, input, ms, onOut){
+  let p;
+  const done = new Promise(res => {
+    const bin = findClaude();
+    if (!bin) return res({ code: -1, out: '', err: 'missing' });
+    const env = { ...process.env };
+    delete env.ELECTRON_RUN_AS_NODE; delete env.CLAUDECODE;
+    // an npm install only has claude.cmd, which needs a shell (and quoted arguments)
+    const cmd = /\.cmd$/i.test(bin);
+    p = spawn(cmd ? `"${bin}"` : bin, cmd ? args.map(a => `"${a}"`) : args, { cwd: aiDir, env, windowsHide: true, shell: cmd });
+    let out = '', err = '', over = false;
+    const end = r => { if (over) return; over = true; clearTimeout(t); res(r); };
+    const t = setTimeout(() => { p.kill(); end({ code: -1, out, err: 'timeout' }); }, ms);
+    p.stdout.on('data', d => { out += d; if (onOut) onOut(String(d)); });
+    p.stderr.on('data', d => { err += d; });
+    p.on('error', e => end({ code: -1, out, err: e.message }));
+    p.on('close', code => end({ code, out, err }));
+    p.stdin.end(input || '');
+  });
+  done.proc = p;
+  return done;
+}
+ipcMain.handle('ai:ask', async (_, { system, prompt, model = 'haiku', timeout = 45000 }) => {
+  fs.mkdirSync(aiDir, { recursive: true });
+  const sys = path.join(aiDir, `system-${process.pid}-${Date.now()}.txt`);
+  fs.writeFileSync(sys, system);
+  const r = await runClaude(['-p', '--safe-mode', '--no-session-persistence', '--strict-mcp-config', '--tools', '', '--model', model,
+    '--system-prompt-file', sys, '--output-format', 'json'], prompt, timeout);
+  fs.rm(sys, { force: true }, () => {});
+  try {
+    const j = JSON.parse(r.out);
+    return j.is_error ? { ok: false, error: String(j.result || 'error') } : { ok: true, text: String(j.result || '') };
+  } catch { return { ok: false, error: (r.err || r.out).trim().slice(0, 300) || 'no answer' }; }
+});
+// chat: the same call, but the answer streams back as it is written
+const chatProcs = new Map();
+ipcMain.handle('ai:chat', async (e, { id, system, prompt, model = 'haiku' }) => {
+  fs.mkdirSync(aiDir, { recursive: true });
+  const sys = path.join(aiDir, `chat-${process.pid}-${Date.now()}.txt`);
+  fs.writeFileSync(sys, system);
+  let buf = '', text = '', final = null;
+  const line = l => {
+    let j; try { j = JSON.parse(l); } catch { return; }
+    const ev = j.type === 'stream_event' && j.event;
+    if (ev && ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') { text += ev.delta.text; if (!e.sender.isDestroyed()) e.sender.send('ai:delta', id, ev.delta.text); }
+    if (j.type === 'result') final = j;
+  };
+  const run = runClaude(['-p', '--safe-mode', '--no-session-persistence', '--strict-mcp-config', '--tools', '', '--model', model,
+    '--system-prompt-file', sys, '--output-format', 'stream-json', '--verbose', '--include-partial-messages'], prompt, 180000, d => {
+    buf += d; let i;
+    while ((i = buf.indexOf('\n')) >= 0) { line(buf.slice(0, i)); buf = buf.slice(i + 1); }
+  });
+  chatProcs.set(id, run.proc);
+  const r = await run;
+  chatProcs.delete(id);
+  if (buf.trim()) line(buf);
+  fs.rm(sys, { force: true }, () => {});
+  if (final && !final.is_error) return { ok: true, text: final.result ?? text };
+  if (text) return { ok: true, text, cut: true };
+  return { ok: false, error: String(final?.result || r.err || 'no answer').trim().slice(0, 300) };
+});
+ipcMain.on('ai:stop', (_, id) => { const p = chatProcs.get(id); if (p) p.kill(); });
+ipcMain.handle('ai:status', async () => {
+  if (!findClaude()) return { found: false, loggedIn: false };
+  fs.mkdirSync(aiDir, { recursive: true });
+  const r = await runClaude(['auth', 'status'], '', 20000);
+  try { return { found: true, loggedIn: !!JSON.parse(r.out).loggedIn }; } catch { return { found: true, loggedIn: false }; }
+});
+
+/* ---------- music: yt-dlp searches YouTube and gives a stream URL ----------
+   It is fetched from its GitHub release on first use (not shipped in the installer), and updated when it starts failing,
+   which happens when YouTube changes something. */
+const binDir = path.join(app.getPath('userData'), 'bin'), ytdlp = path.join(binDir, 'yt-dlp.exe');
+let ytdlpGet = null, ytdlpFresh = false;
+function ensureYtdlp(){
+  if (fs.existsSync(ytdlp)) return Promise.resolve();
+  return ytdlpGet ||= (async () => {
+    fs.mkdirSync(binDir, { recursive: true });
+    const r = await net.fetch('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe');
+    if (!r.ok) throw new Error('download failed (' + r.status + ')');
+    const total = +r.headers.get('content-length') || 0, reader = r.body.getReader(), parts = [];
+    let got = 0, shown = -1;
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      parts.push(value); got += value.length;
+      const pct = total ? Math.floor(got / total * 100) : 0;
+      if (pct !== shown && win && !win.isDestroyed()) { shown = pct; win.webContents.send('music:engine', pct); }
+    }
+    fs.writeFileSync(ytdlp + '.part', Buffer.concat(parts));
+    fs.renameSync(ytdlp + '.part', ytdlp);
+    ytdlpFresh = true;
+  })().finally(() => { ytdlpGet = null; });
+}
+function runYt(args, ms = 60000){
+  return new Promise(res => {
+    const p = spawn(ytdlp, ['--no-warnings', '--no-config', ...args], { cwd: binDir, windowsHide: true });
+    let out = '', err = '';
+    const t = setTimeout(() => p.kill(), ms);
+    p.stdout.on('data', d => { out += d; });
+    p.stderr.on('data', d => { err += d; });
+    p.on('error', e => { clearTimeout(t); res({ code: -1, out, err: e.message }); });
+    p.on('close', code => { clearTimeout(t); res({ code, out, err }); });
+  });
+}
+// one retry after "yt-dlp -U" when YouTube changed something under it
+async function yt(args, ms){
+  await ensureYtdlp();
+  let r = await runYt(args, ms);
+  if (r.code !== 0 && !ytdlpFresh) { ytdlpFresh = true; await runYt(['-U'], 90000); r = await runYt(args, ms); }
+  return r;
+}
+const ytErr = r => (r.err.split('\n').find(l => /ERROR/.test(l)) || r.err || 'no answer').replace(/^ERROR:\s*/, '').trim().slice(0, 200);
+ipcMain.handle('music:state', () => ({ ready: fs.existsSync(ytdlp) }));
+ipcMain.handle('music:search', async (_, q) => {
+  try {
+    const r = await yt([`ytsearch24:${q}`, '--flat-playlist', '-J'], 45000);
+    if (r.code !== 0) return { ok: false, error: ytErr(r) };
+    const j = JSON.parse(r.out);
+    return { ok: true, list: (j.entries || []).filter(e => e.id && e.duration).map(e => ({ id: e.id, title: e.title, artist: e.channel || e.uploader || '', dur: Math.round(e.duration) })) };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('music:url', async (_, id) => {
+  try {
+    const r = await yt(['-f', 'bestaudio[ext=m4a]/bestaudio', '-g', 'https://www.youtube.com/watch?v=' + id], 45000);
+    const url = r.out.trim().split('\n')[0];
+    return r.code === 0 && /^https:/.test(url) ? { ok: true, url } : { ok: false, error: ytErr(r) };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
 
 /* ---------- app info + updates ----------
    New versions are GitHub releases. The installer downloads in the background and runs silently
@@ -295,7 +448,7 @@ function createWindow(visible){
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#12110f' : '#e7e0d1',
     autoHideMenuBar: true,
     show: false,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false },
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' },
   });
   win.removeMenu();
   if (b.maximized) win.maximize();
@@ -303,6 +456,8 @@ function createWindow(visible){
   win.on('focus', () => win.flashFrame(false));
   win.loadFile('index.html');
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+  // a click inside the YouTube player gives it focus, and its keys never reach the page
+  win.webContents.on('before-input-event', (_, i) => { if (i.type === 'keyDown' && i.key === 'Escape') win.webContents.send('key:esc'); });
   win.on('close', e => {
     const maximized = win.isMaximized();
     fs.writeFileSync(winFile, JSON.stringify({ ...(maximized ? readJSON(winFile, {}) : win.getBounds()), maximized }));
@@ -319,6 +474,10 @@ function createWindow(visible){
 
 app.on('second-instance', showMain);
 app.whenReady().then(() => {
+  // a file:// page sends no referrer, and YouTube's embed then fails with "player configuration error"
+  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube-nocookie.com/*', 'https://www.youtube.com/*'] }, (d, cb) => {
+    d.requestHeaders.Referer = 'https://www.youtube-nocookie.com/'; cb({ requestHeaders: d.requestHeaders });
+  });
   createTray();
   createWindow(!process.argv.includes('--hidden'));
   createCapture();

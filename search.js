@@ -64,7 +64,7 @@ function collect(q){
   Object.entries(SUBJ).forEach(([k, s]) => add('event', SI.cal, `${k} · ${s.name}`, 'Classes', score(q, `${k} ${s.name}`), () => { go('calendar'); setCalView('week', new Date()); }));
   add('event', SI.cal, TT.classes.length || SHIFTS.length ? 'Timetable' : 'Set up your timetable', 'Your classes and work shifts', score(q, 'timetable classes work shifts schedule'), () => openTimetable());
   SN.list.forEach(s => add('snip', SI.snip, s.title, s.code + ' · Enter copies it', score(q, s.title, s.code + ' ' + (s.tag || '')), () => { s.uses++; saveSnippets(); copyText(s.code, 'Copied to clipboard'); }));
-  VD.list.forEach(v => add('video', SI.video, v.title, v.author || 'YouTube', score(q, v.title, (v.author || '') + ' ' + (v.tags || []).join(' ')), () => { DESK ? desk.openUrl(v.url) : window.open(v.url, '_blank'); }));
+  VD.list.forEach(v => add('video', SI.video, v.title, v.author || 'YouTube', score(q, v.title, (v.author || '') + ' ' + (v.tags || []).join(' ')), () => openPlayer(v)));
   BD.list.forEach(b => b.cards.forEach(c => c.text && add('board', SI.board, c.text.split('\n')[0].slice(0, 80), 'Board · ' + b.name, score(q, c.text), () => { BD.cur = b.id; BD.sel = new Set([c.id]); go('boards'); centerCard(c); })));
   PJ.list.forEach(p => add('proj', SI.proj, p.name, p.path, score(q, p.name, p.path), () => go('projects')));
   HB.list.forEach(h => add('habit', SI.habit, h.name, 'Habit', score(q, h.name), () => go('habits')));

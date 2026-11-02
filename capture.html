@@ -14,22 +14,50 @@ html,body{background:transparent;overflow:hidden;font-family:Commissioner,system
 input{flex:1;min-width:0;font:inherit;font-size:18px;font-weight:500;color:var(--ink);background:none;border:0;outline:none}
 input::placeholder{color:var(--muted)}
 .kind{flex:none;padding:4px 10px;border-radius:999px;background:var(--chip);font-size:12px;font-weight:700;color:var(--muted)}
+.busy .kind{animation:pulse 1s ease-in-out infinite alternate}
+@keyframes pulse{to{opacity:.35}}
+.done input{font-size:15px}
+.undo{display:none;flex:none;font:inherit;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:9px;border:1px solid var(--line);background:none;color:var(--ink);cursor:pointer}
+.done.can-undo .undo{display:block}
+.undo:hover{background:var(--chip)}
 </style>
 </head>
 <body>
-<div class="box"><span class="owl"></span><input id="q" placeholder="To-do · note … · -300 lunch · YouTube link · snip Title :: cmd" autocomplete="off" spellcheck="false"><span class="kind" id="k">To-do</span></div>
+<div class="box"><span class="owl"></span><input id="q" placeholder="To-do · note … · -300 lunch · YouTube link · snip Title :: cmd" autocomplete="off" spellcheck="false"><span class="kind" id="k">To-do</span><button class="undo" id="u">Undo</button></div>
 <script>
-const q = document.getElementById('q'), k = document.getElementById('k');
-const kindOf = v => /youtu\.?be/.test(v) ? 'Video' : /^snip\s/i.test(v) ? 'Snippet' : /^note\s/i.test(v) ? 'Note' : /^([+-]\s*\d|(spent|paid|bought|earned|received|save)\s+\d)/i.test(v) ? 'Money' : 'To-do';
-q.addEventListener('input', () => { k.textContent = kindOf(q.value); });
+const q = document.getElementById('q'), k = document.getElementById('k'), box = document.querySelector('.box');
+const PH = {off:'To-do · note … · -300 lunch · YouTube link · snip Title :: cmd', on:'Type anything · gym tomorrow 6pm · spent 300 on lunch · ALGO exam nov 3'};
+let ai = false, state = 'type', hideTm = 0;
+const kindOf = v => /youtu\.?be/.test(v) ? 'Video' : /^snip\s/i.test(v) ? 'Snippet' : /^note\s/i.test(v) ? 'Note' : /^([+-]\s*\d|(spent|paid|bought|earned|received|save)\s+\d)/i.test(v) ? 'Money' : ai ? 'Auto' : 'To-do';
+function reset(){
+  clearTimeout(hideTm); state = 'type';
+  box.classList.remove('busy', 'done', 'can-undo');
+  q.readOnly = false; q.value = ''; k.textContent = ai ? 'Auto' : 'To-do';
+}
+q.addEventListener('input', () => { if (state === 'type') k.textContent = kindOf(q.value); });
 q.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { q.value = ''; deskApp.captureHide(); }
-  if (e.key === 'Enter' && q.value.trim()) { deskApp.captureSubmit(q.value.trim()); q.value = ''; k.textContent = 'To-do'; }
+  if (e.key === 'Escape') { reset(); deskApp.captureHide(); return; }
+  if (state === 'done') { reset(); return; }
+  if (e.key === 'Enter' && state === 'type' && q.value.trim()) {
+    state = 'busy'; box.classList.add('busy'); q.readOnly = true; k.textContent = 'Adding';
+    deskApp.captureSubmit(q.value.trim());
+    hideTm = setTimeout(() => { reset(); deskApp.captureHide(); }, 60000);
+  }
 });
-deskApp.onCaptureOpen(mode => {
+document.getElementById('u').addEventListener('click', () => { deskApp.captureUndo(); reset(); deskApp.captureHide(); });
+deskApp.onCaptureResult(r => {
+  if (state !== 'busy') return;
+  clearTimeout(hideTm); state = 'done';
+  box.classList.remove('busy'); box.classList.add('done'); box.classList.toggle('can-undo', !!r.undo);
+  q.value = r.text; k.textContent = r.fail ? 'Saved' : 'Added';
+  hideTm = setTimeout(() => { reset(); deskApp.captureHide(); }, r.undo ? 3500 : 2200);
+});
+deskApp.onCaptureOpen((mode, on) => {
   let m = 'light'; try { m = JSON.parse(mode); } catch {}
   if (m === 'auto') m = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   document.documentElement.classList.toggle('dark', m === 'dark');
+  ai = !!on; q.placeholder = ai ? PH.on : PH.off;
+  if (state !== 'busy') reset();
   q.focus(); q.select();
 });
 </script>

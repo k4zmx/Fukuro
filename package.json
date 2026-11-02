@@ -1,10 +1,10 @@
 {
   "name": "fukuro",
   "productName": "Fukurō",
-  "version": "1.5.0",
+  "version": "1.8.0",
   "description": "Fukurō 梟 · a calm desktop hub for your week: calendar, timetable, to-dos, notes, budget, habits and focus timers",
   "main": "main.js",
-  "author": "k4zmx",
+  "author": "Crino Studio",
   "license": "MIT",
   "homepage": "https://github.com/k4zmx/Fukuro",
   "repository": {
@@ -42,10 +42,14 @@
       "projects.js",
       "snippets.js",
       "videos.js",
+      "music.js",
       "budget.js",
       "journal.js",
       "search.js",
       "reminders.js",
+      "classes.js",
+      "ai.js",
+      "chat.js",
       "settings.js",
       "overview.js",
       "fonts/**",
@@ -66,7 +70,7 @@
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "Fukurō",
-      "artifactName": "Fukuro-Setup-${version}.${ext}"
+      "artifactName": "Fukuro-Setup.${ext}"
     },
     "publish": null
   },
